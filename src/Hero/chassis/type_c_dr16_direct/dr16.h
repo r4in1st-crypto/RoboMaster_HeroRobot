@@ -57,7 +57,7 @@ typedef struct {
 /* Decode one complete, externally framed UART packet (100000 baud, 8E1).
  * Return DR16_OK only for exactly 18 bytes and valid fields. On ANY error,
  * *out is unchanged. The caller owns the response to an invalid packet.
- * This direct-control development variant keeps the last valid command;
+ * The controller zeros drive output until the next valid packet;
  * the parser implements no actuator timeout or stop behavior.
  * Legacy bytes16..17 == 0 are accepted as wheel_valid=0, wheel centered and
  * normalized=0. Any other wheel value must satisfy the normal channel range.

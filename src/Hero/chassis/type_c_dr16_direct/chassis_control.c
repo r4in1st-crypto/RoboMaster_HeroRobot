@@ -56,6 +56,11 @@ void chassis_init(void) {
 void chassis_remote_invalid(uint32_t now_ms,uint32_t reason) {
     ctl.d.now_ms=now_ms; ++ctl.d.rc_bad_count; ctl.d.rc_bad_reason=reason;
     ctl.d.rc_consecutive=0u;
+    ctl.d.rc_valid=0u;
+    if(ctl.d.state==CHASSIS_ACTIVE) ++ctl.d.disarm_count;
+    ctl.d.state=CHASSIS_DISABLED;
+    ctl.d.stop_reason=CHASSIS_STOP_RC_INVALID;
+    zero();
     publish();
 }
 void chassis_remote_update(const dr16_frame_t *frame) {

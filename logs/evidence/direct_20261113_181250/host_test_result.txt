@@ -1,0 +1,8 @@
+PASS fixed RR201 FR202 FL203 LR204 mapping, forward/strafe/yaw signs and proportional mixer
+PASS first nonneutral UP enables immediately without feedback/dwell; target has no ramp; MID/DOWN zero immediately
+PASS invalid RC zeros immediately, remains zero across silence, next valid opposite command resumes
+PASS ten frames: fifth invalid, sixth UP resumes left or right without a switch cycle
+PASS hot/overspeed feedback remains data; malformed payloads keep last sample; signed C620 +/-16384 endpoints and PI anti-windup
+PASS 20 minutes at 1 ms virtual steps across uint32 wrap: one UP sample, no feedback, no new frames, no latch; DOWN still zero
+PASS public diagnostic writes cannot change private control; ABI remains 396 bytes with version 2 semantics
+ALL PASS: 2579359 assertions; direct-mode host tests only, no hardware validation

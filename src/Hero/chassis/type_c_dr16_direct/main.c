@@ -21,20 +21,24 @@ static void service_snapshot(void)
 static bool service_remote(void)
 {
     bool switch_changed = false;
-    uint32_t errors = platform_rc_take_errors();
-    if (errors != 0u)
-        chassis_remote_invalid(platform_millis(), UINT32_C(0x10000) | errors);
+    uint32_t errors;
     uint8_t bytes[DR16_FRAME_BYTES];
     uint32_t received_ms;
-    while (platform_rc_pop(bytes, &received_ms)) {
+    while (platform_rc_pop(bytes, &received_ms, &errors)) {
+        if (errors != 0u) {
+            chassis_remote_invalid(platform_millis(), UINT32_C(0x10000) | errors);
+            return true; /* Publish zero before consuming a newer packet. */
+        }
         dr16_frame_t frame;
         dr16_result_t result = dr16_decode(bytes, sizeof(bytes), received_ms, &frame);
         if (result == DR16_OK) {
             bool before = chassis_output_enabled();
             chassis_remote_update(&frame);
             switch_changed |= before != chassis_output_enabled();
-        } else
+        } else {
             chassis_remote_invalid(platform_millis(), (uint32_t)result);
+            return true;
+        }
     }
     /* When packets accumulated, the last legal command wins. Recompute that
      * final command immediately even if DOWN then UP returned to the old state. */

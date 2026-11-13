@@ -213,6 +213,14 @@ static void interrupt_restore(uint32_t old)
     __asm volatile("msr primask, %0" :: "r"(old) : "memory");
 }
 
+/* Drop queued older packets: none may re-enable the drive after this error.
+ * Invoked by the RX handlers (same preemption priority) or with IRQs masked. */
+static void rc_record_error(uint32_t reason)
+{
+    rc_tail = rc_head;
+    rc_error_events |= reason;
+}
+
 static bool rc_dma_stop(void)
 {
     DMA_S1CR &= ~1u;
@@ -225,7 +233,7 @@ static bool rc_dma_stop(void)
     UART_CR3 &= ~(1u << 6);
     if (!rc_dma_restart_pending) { ++rc_dma_error_count; }
     rc_dma_restart_pending = true;
-    rc_error_events |= PLATFORM_RC_ERR_DMA;
+    rc_record_error(PLATFORM_RC_ERR_DMA);
     return false;
 }
 
@@ -288,14 +296,14 @@ void DMA1_Stream1_IRQHandler(void)
     DMA_LIFCR = DMA_S1_ALL_FLAGS;
     if ((flags & DMA_S1_ERROR_FLAGS) != 0u) {
         ++rc_dma_error_count;
-        rc_error_events |= PLATFORM_RC_ERR_DMA;
+        rc_record_error(PLATFORM_RC_ERR_DMA);
         rc_burst_invalid = true;
     }
     if ((flags & (1u << 11)) != 0u && DMA_S1NDTR == 0u) {
         /* 36 bytes without IDLE is not a valid single 18-byte DR16 frame.
          * Do not restart mid-burst: discard through the next IDLE boundary. */
         ++rc_bad_length_count;
-        rc_error_events |= PLATFORM_RC_ERR_LENGTH;
+        rc_record_error(PLATFORM_RC_ERR_LENGTH);
         rc_burst_invalid = true;
     }
 }
@@ -306,7 +314,7 @@ void USART3_IRQHandler(void)
     rc_last_sr = sr;
     if ((sr & UART_ERROR_FLAGS) != 0u) {
         ++rc_uart_error_count;
-        rc_error_events |= PLATFORM_RC_ERR_UART;
+        rc_record_error(PLATFORM_RC_ERR_UART);
         rc_burst_invalid = true;
     }
     if ((sr & UART_IDLE_FLAG) != 0u) {
@@ -327,12 +335,12 @@ void USART3_IRQHandler(void)
         if ((sr & UART_RXNE_FLAG) != 0u) {
             ++rc_uart_error_count;
             rc_burst_invalid = true;
-            rc_error_events |= PLATFORM_RC_ERR_UART;
+            rc_record_error(PLATFORM_RC_ERR_UART);
         }
         if ((flags & DMA_S1_ERROR_FLAGS) != 0u) {
             ++rc_dma_error_count;
             rc_burst_invalid = true;
-            rc_error_events |= PLATFORM_RC_ERR_DMA;
+            rc_record_error(PLATFORM_RC_ERR_DMA);
         }
         /* ST AN4031 / RM0090: clearing EN also raises TCIF. That artificial
          * completion is expected at every IDLE and is NOT a full buffer.
@@ -340,14 +348,14 @@ void USART3_IRQHandler(void)
         if ((flags_before_stop & (1u << 11)) != 0u || remaining == 0u ||
             remaining > RC_DMA_BYTES) {
             rc_burst_invalid = true;
-            rc_error_events |= PLATFORM_RC_ERR_LENGTH;
+            rc_record_error(PLATFORM_RC_ERR_LENGTH);
         }
         if (length == 18u && !rc_burst_invalid) {
             uint32_t head = rc_head;
             if ((uint32_t)(head - rc_tail) >= RC_QUEUE_SIZE) {
                 ++rc_overflow_count;
-                rc_error_events |= PLATFORM_RC_ERR_OVERFLOW;
-                ++rc_tail;             /* Keep newest validated UART packets. */
+                rc_record_error(PLATFORM_RC_ERR_OVERFLOW);
+                /* The new packet follows the overflow event. */
             }
             uint32_t slot = head % RC_QUEUE_SIZE;
             for (uint32_t i = 0; i < 18u; ++i) {
@@ -360,7 +368,7 @@ void USART3_IRQHandler(void)
             rc_last_frame_ms = uptime_ms;
         } else if (length != 0u || rc_burst_invalid) {
             ++rc_bad_length_count;
-            rc_error_events |= PLATFORM_RC_ERR_LENGTH;
+            rc_record_error(PLATFORM_RC_ERR_LENGTH);
         }
         rc_burst_invalid = false;
         rc_dma_restart();
@@ -369,18 +377,15 @@ void USART3_IRQHandler(void)
     }
 }
 
-uint32_t platform_rc_take_errors(void)
+bool platform_rc_pop(uint8_t frame[18], uint32_t *received_ms, uint32_t *errors)
 {
     uint32_t old = interrupt_lock();
-    uint32_t errors = rc_error_events;
-    rc_error_events = 0u;
-    interrupt_restore(old);
-    return errors;
-}
-
-bool platform_rc_pop(uint8_t frame[18], uint32_t *received_ms)
-{
-    uint32_t old = interrupt_lock();
+    *errors = rc_error_events;
+    if (*errors != 0u) {
+        rc_error_events = 0u;
+        interrupt_restore(old);
+        return true;
+    }
     uint32_t tail = rc_tail;
     bool available = tail != rc_head;
     if (available) {
@@ -494,8 +499,7 @@ static void note_rx_overrun(void)
 void platform_service(void)
 {
     /* A DMA disable that did not finish within the ISR bound is retried only
-     * after hardware reports EN=0. This is reception housekeeping, not a
-     * controller stop: the last decoded remote command is left untouched. */
+     * after hardware reports EN=0. The pending RX error is consumed by the main loop. */
     if (rc_dma_restart_pending) {
         record_error(PLATFORM_ERR_UART_HW);
         uint32_t old = interrupt_lock();

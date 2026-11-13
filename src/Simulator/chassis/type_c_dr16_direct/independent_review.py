@@ -10,7 +10,7 @@ from pathlib import Path
 SCENARIOS = {
     'direct_continuous_20min': 1200000,
     'up_immediate_other_switch_positions_zero': 720,
-    'rc_gap_and_invalid_keep_last_valid': 2500,
+    'rc_gap_invalid_zero_then_reverse': 2500,
     'feedback_gap_and_invalid_keep_last_valid': 2800,
     'temperature_and_overspeed_do_not_stop': 800,
     'can_key_and_tick_gap_do_not_stop': 1400,
@@ -86,6 +86,7 @@ def review(output, task=None, preflight=None):
                 s['last_rc_ms']=r['controller_ms'];s['rc_frames']+=1
             elif r['rc_result']>0:
                 s['rc_bad']+=1
+                s['last_rc']=None  # invalidate drive demand; retain last accepted timestamp
             require(r['rc_frames']==s['rc_frames'] and r['rc_bad']==s['rc_bad'], context+'valid/invalid RC counters')
             age=(r['controller_ms']-s['last_rc_ms'])&0xffffffff if s['last_rc_ms'] is not None else 0xffffffff
             require(r['rc_age_ms']==age, context+'last valid RC timestamp retained')
@@ -133,7 +134,10 @@ def review(output, task=None, preflight=None):
             require(s[k]==result[k]==summary['csv_recomputation']['scenarios'][result['id']][k], result['id']+' metric '+k)
         require(result['passed'] and not result['failures'] and s['rows']==SCENARIOS[result['id']], result['id']+' pass/coverage')
     require(data['direct_continuous_20min']['active_rows']==1200000, '20 simulated minutes ACTIVE at every step')
-    require(data['rc_gap_and_invalid_keep_last_valid']['max_rc_age_ms']>1500, 'RC loss exceeds previous timeout while driving')
+    require(data['rc_gap_invalid_zero_then_reverse']['max_rc_age_ms']>1500, 'RC loss exceeds previous timeout while driving')
+    rc_case=data['rc_gap_invalid_zero_then_reverse']
+    require(rc_case['rc_bad']==1 and rc_case['phase_states']['wait_for_new_frame']=={0}
+            and rc_case['phase_states']['valid_reverse_no_rearm']=={2}, 'one error, zero until new UP, automatic recovery')
     require(data['feedback_gap_and_invalid_keep_last_valid']['max_feedback_age_ms']>2000 and
             data['feedback_gap_and_invalid_keep_last_valid']['min_online_wheels']==0, 'all-feedback loss exercised without a stop')
     for name in ('temperature_and_overspeed_do_not_stop','can_key_and_tick_gap_do_not_stop','stalled_model_does_not_shutdown'):

@@ -1,0 +1,65 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Rebuild",
+      "type": "process",
+      "command": "python",
+      "args": [
+        "-B",
+        "${workspaceFolder}/vscode_chassis.py",
+        "rebuild"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": "$gcc",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Check Flash (offline)",
+      "type": "process",
+      "command": "python",
+      "args": [
+        "-B",
+        "${workspaceFolder}/vscode_chassis.py",
+        "check"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "dependsOn": "Rebuild"
+    },
+    {
+      "label": "Flash",
+      "type": "process",
+      "command": "python",
+      "args": [
+        "-B",
+        "${workspaceFolder}/vscode_chassis.py",
+        "flash"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "dependsOn": "Rebuild"
+    }
+  ]
+}

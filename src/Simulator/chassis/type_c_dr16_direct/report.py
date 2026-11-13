@@ -57,7 +57,7 @@ def main():
         'scope': 'Unprotected direct controller C + actual DR16 parser + assumed first-order rotor; no BSP or real CAN/UART.',
         'behavior': {'S1_UP': 'immediate drive using last valid input; no dwell or neutral qualification',
                      'other_S1': 'zero command on receipt of that valid RC frame',
-                     'missing_or_bad_RC_feedback': 'continue using the last valid sample; no timeout stop',
+                     'remote_and_feedback': 'invalid RC zeros drive until next valid frame; no silence timeout; invalid feedback discarded',
                      'temperature_overspeed_stall_key_CAN_tick_gap': 'no software stop',
                      'current_encoding': 'C620 +/-16384 protocol endpoint, not a safety current limit'},
         'model': {'gain_rpm_per_raw': 0.8, 'tau_ms': 180, 'dt_ms': 1, 'can_command_hold_ms': 5,
@@ -83,7 +83,7 @@ def main():
 <main><h1>DR16 direct mode: software simulation</h1><p>Job <code>{h(a.job_id)}</code><br>Nonce <code>{h(a.nonce)}</code></p>
 <section><h2>{summary['status']} · {len(runner['scenarios'])} scenarios · {rows:,} rows</h2>
 <p>{sum(s['checks'] for s in runner['scenarios']):,} C assertions. Twenty minutes means <b>simulated time</b> at 1 ms steps, not physical endurance or wall-clock runtime.</p>
-<p class="note"><b>This version has no software protection stops.</b> A valid S1 UP commands immediately. Other S1 positions command zero. Missing or invalid RC/feedback keeps the last valid values. CAN-health/key inputs, high temperature/speed, a stalled model, and a clock gap do not stop the controller. +/-16384 is the C620 encoding range.</p></section>
+<p class="note"><b>This version has no software protection stops.</b> A valid S1 UP commands immediately. Other S1 positions command zero. Invalid RC zeros the drive until a new valid command. Silence alone has no timeout; invalid feedback is discarded. CAN-health/key inputs, high temperature/speed, a stalled model, and a clock gap do not stop the controller. +/-16384 is the C620 encoding range.</p></section>
 <section><table><tr><th>Scenario</th><th>Result</th><th>Rows</th><th>Peak raw command</th><th>ACTIVE samples</th><th>Note</th></tr>{table}</table></section>
 <section><h2>Twenty-minute command/response trace (1 s display sampling)</h2>
 <p>Orange: 201 target; blue: assumed rotor speed. Full 1 ms rows are in raw.csv.</p>

@@ -91,8 +91,7 @@ extern volatile platform_diag_t g_platform_diag;
 bool platform_init(void);
 uint32_t platform_millis(void);
 void platform_service(void);
-bool platform_rc_pop(uint8_t frame[18], uint32_t *received_ms);
-uint32_t platform_rc_take_errors(void);
+bool platform_rc_pop(uint8_t frame[18], uint32_t *received_ms, uint32_t *errors);
 /* Caller controls pacing. Records the latest payload and services mailboxes
  * without waiting. enabled=false sends zero solely as the user's S1 command. */
 void platform_send_currents(const int16_t currents[8], bool output_enabled);

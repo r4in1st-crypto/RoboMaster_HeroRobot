@@ -131,14 +131,17 @@ static void scenarios(void) {
     rig.switch_left=DR16_SWITCH_UP;run("up_again_non_neutral",200,-1);
     check(chassis_diag.state==CHASSIS_ACTIVE,"up_needs_no_neutral_or_dwell");finish();
 
-    start(2,"rc_gap_and_invalid_keep_last_valid");
+    start(2,"rc_gap_invalid_zero_then_reverse");
     command(400,600,0,0);run("valid_drive",500,1);
     unsigned rc_count=chassis_diag.rc_frame_count;
     rig.rc_mode=0;command(-1000,0,0,0);run("rc_missing",1500,1);
     check(chassis_diag.rc_frame_count==rc_count && chassis_diag.rc_age_ms>1000,"stale_rc_still_used");
-    rig.rc_mode=2;run("invalid_rc_frames",300,1);
+    rig.rc_mode=2;run("one_invalid_frame",1,0);
+    rig.rc_mode=0;run("wait_for_new_frame",299,0);
     check(chassis_diag.rc_frame_count==rc_count && chassis_diag.rc_bad_count>0,"invalid_rc_does_not_replace_last");
-    rig.rc_mode=1;rig.switch_left=DR16_SWITCH_MIDDLE;run("valid_switch_middle",200,-1);
+    rig.rc_mode=1;run("valid_reverse_no_rearm",100,1);
+    check(chassis_diag.desired_right_milli==-1000,"next_UP_applies_new_command");
+    rig.switch_left=DR16_SWITCH_MIDDLE;run("valid_switch_middle",100,-1);
     check(chassis_diag.state==CHASSIS_DISABLED,"new_valid_switch_stops");finish();
 
     start(3,"feedback_gap_and_invalid_keep_last_valid");

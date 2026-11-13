@@ -132,32 +132,62 @@ static void test_first_up_and_direct_switch(void) {
     puts("PASS first nonneutral UP enables immediately without feedback/dwell; target has no ramp; MID/DOWN zero immediately");
 }
 
-static void test_invalid_loss_and_timestamps_keep_last(void) {
+static void test_invalid_zero_and_timestamps(void) {
     reset(0); remote(DR16_SWITCH_UP,1684,1024,1024,1024); step(1,true,false);
     dr16_frame_t accepted=chassis_diag.rc;
-    int16_t before[8], after[8]; chassis_currents(before);
+    CHECK(chassis_diag.motors[0].command_current_raw != 0);
     uint8_t bad[18]; dr16_frame_t decoded=accepted;
     packet(bad,DR16_SWITCH_DOWN,DR16_SWITCH_MIDDLE,0,1024,1024,1024);
     CHECK(dr16_decode(bad,sizeof(bad),now_ms,&decoded)==DR16_ERROR_CHANNEL);
     CHECK(memcmp(&decoded,&accepted,sizeof(accepted))==0);
     chassis_remote_invalid(now_ms,DR16_ERROR_CHANNEL);
-    chassis_currents(after); CHECK(memcmp(before,after,sizeof(before))==0);
+    zero_output(); CHECK(chassis_diag.desired_right_milli==0);
     chassis_remote_update(NULL);
-    CHECK(chassis_diag.rc_bad_count==2u && chassis_diag.rc_valid==1u);
-    CHECK(chassis_diag.rc_consecutive==0u && chassis_output_enabled());
+    CHECK(chassis_diag.rc_bad_count==2u && chassis_diag.rc_valid==0u);
+    CHECK(chassis_diag.rc_consecutive==0u && !chassis_output_enabled());
     decoded=chassis_diag.rc; CHECK(memcmp(&decoded,&accepted,sizeof(accepted))==0);
     step(60000,false,true);
     CHECK(chassis_diag.rc_age_ms==now_ms-accepted.last_frame_ms);
-    CHECK(chassis_diag.online_wheels==0u && chassis_output_enabled());
-    CHECK(chassis_diag.motors[0].target_millirpm==-300000);
-    CHECK(chassis_diag.motors[1].target_millirpm==300000);
+    CHECK(chassis_diag.online_wheels==0u && !chassis_output_enabled());
+    zero_output();
+    for(unsigned i=0;i<4u;++i) CHECK(chassis_diag.motors[i].target_millirpm==0);
+    remote(DR16_SWITCH_UP,364,1024,1024,1024);
+    step(0,true,false);
+    CHECK(chassis_output_enabled() && chassis_diag.rc_valid);
+    CHECK(chassis_diag.motors[0].target_millirpm==300000);
+    CHECK(chassis_diag.motors[1].target_millirpm==-300000);
     /* Timestamp age/cadence has no authority in this development variant. */
     decoded.last_frame_ms=UINT32_MAX; chassis_remote_update(&decoded);
     step(20000,false,true); CHECK(chassis_output_enabled());
     decoded.last_frame_ms=0u; chassis_remote_update(&decoded);
     chassis_remote_update(&decoded); step(0,false,true);
     CHECK(chassis_output_enabled() && chassis_diag.rc.last_frame_ms==0u);
-    puts("PASS malformed/null RC, missing RC/feedback, old/duplicate timestamps, CAN-health and STOP arguments never latch or stop");
+    puts("PASS invalid RC zeros immediately, remains zero across silence, next valid opposite command resumes");
+}
+
+static void test_ten_strafe_frames(void) {
+    for(unsigned reverse=0; reverse<2; ++reverse) {
+        reset(0);
+        for(unsigned n=1; n<=10; ++n) {
+            now_ms+=14;
+            uint8_t bytes[18]; dr16_frame_t frame;
+            packet(bytes,DR16_SWITCH_UP,DR16_SWITCH_MIDDLE,
+                   n==5 ? 0 : (reverse && n>5 ? 1684 : 364),1024,1024,1024);
+            dr16_result_t result=dr16_decode(bytes,sizeof(bytes),now_ms,&frame);
+            if(n==5) {
+                CHECK(result==DR16_ERROR_CHANNEL);
+                chassis_remote_invalid(now_ms,result);
+                zero_output(); step(0,true,false); zero_output();
+                CHECK(chassis_diag.rc_age_ms==14 && !chassis_output_enabled());
+            } else {
+                CHECK(result==DR16_OK); chassis_remote_update(&frame); step(0,true,false);
+                CHECK(chassis_diag.desired_right_milli==(reverse && n>5 ? 1000 : -1000));
+                CHECK(chassis_output_enabled() && chassis_diag.motors[0].command_current_raw!=0);
+            }
+        }
+        CHECK(chassis_diag.rc_frame_count==9 && chassis_diag.rc_bad_count==1);
+    }
+    puts("PASS ten frames: fifth invalid, sixth UP resumes left or right without a switch cycle");
 }
 
 static void test_feedback_payload_and_protocol_endpoint(void) {
@@ -202,7 +232,6 @@ static void test_twenty_minutes_without_new_samples(void) {
     reset(start); remote(DR16_SWITCH_UP,1024,1684,1024,1024);
     for(uint32_t elapsed=1u;elapsed<=duration;++elapsed) {
         now_ms=start+elapsed;
-        if(elapsed%1000u==0u) chassis_remote_invalid(now_ms,DR16_ERROR_LENGTH);
         chassis_step(now_ms,false,true);
         CHECK(chassis_output_enabled());
         CHECK(chassis_diag.fault_code==CHASSIS_FAULT_NONE);
@@ -215,13 +244,13 @@ static void test_twenty_minutes_without_new_samples(void) {
         }
     }
     CHECK(chassis_diag.rc_age_ms==duration && chassis_diag.rc_frame_count==1u);
-    CHECK(chassis_diag.rc_bad_count==1200u && chassis_diag.online_wheels==0u);
+    CHECK(chassis_diag.rc_bad_count==0u && chassis_diag.online_wheels==0u);
     CHECK(chassis_diag.arm_count==1u && chassis_diag.disarm_count==0u);
     remote(DR16_SWITCH_DOWN,1024,1684,1024,1024);
     CHECK(!chassis_output_enabled()); zero_output();
     remote(DR16_SWITCH_UP,1024,1684,1024,1024);
     step(1,false,true); CHECK(chassis_output_enabled());
-    puts("PASS 20 minutes at 1 ms virtual steps across uint32 wrap: one UP sample, no feedback, 1200 invalid frames, no latch; DOWN still zero");
+    puts("PASS 20 minutes at 1 ms virtual steps across uint32 wrap: one UP sample, no feedback, no new frames, no latch; DOWN still zero");
 }
 
 static void test_diagnostic_isolation(void) {
@@ -242,7 +271,8 @@ static void test_diagnostic_isolation(void) {
 int main(void) {
     test_mapping_and_mixer();
     test_first_up_and_direct_switch();
-    test_invalid_loss_and_timestamps_keep_last();
+    test_invalid_zero_and_timestamps();
+    test_ten_strafe_frames();
     test_feedback_payload_and_protocol_endpoint();
     test_twenty_minutes_without_new_samples();
     test_diagnostic_isolation();
