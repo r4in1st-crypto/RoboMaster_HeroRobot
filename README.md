@@ -1,6 +1,6 @@
 # RoboMaster HERO · C 板底盘与主机仿真
 
-本分支保存 HERO 四轮底盘的两套独立 STM32F407 工程和各自的主机闭环仿真。历史版和 direct 版分别编译本目录的遥控解析器、轮速控制器及场景程序。
+本仓库用于团队资料归档与交接。本分支保存 HERO 四轮底盘的两套独立 STM32F407 工程和各自的主机闭环仿真。历史版和 direct 版分别编译本目录的遥控解析器、轮速控制器及场景程序。
 
 | 位置 | 内容 |
 | --- | --- |
@@ -29,3 +29,7 @@ python -B "$sim/independent_review.py" --preflight --output-dir $out --job-id di
 ```
 
 历史版使用同目录层级下 type_c_dr16/run_simulation.ps1，传入新的绝对输出目录、JobId、Nonce 及 -LeftVerticalPolicy ignore 后，再运行该版 independent_review.py。既有软件回归覆盖历史版 14 个场景和 direct 版 7 个场景，模型采用假设的一阶转子响应。
+
+## 验证状态
+
+两套底盘均已在迁移工作区完成离线编译、主机测试和仿真，生成的 BIN 分别与迁移前基线一致。从 GitHub 全新克隆后的复现仍待验证。整车其他机构及其联动状态不在本分支的验证范围内。
