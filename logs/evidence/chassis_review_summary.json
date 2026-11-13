@@ -1,0 +1,16 @@
+[
+  {
+    "status": "PASS",
+    "raw_rows": 1260753,
+    "checked_assertions": 25383271,
+    "failed_assertions": 0,
+    "version": "type_c_dr16"
+  },
+  {
+    "status": "PASS",
+    "raw_rows": 1211220,
+    "checked_assertions": 31491796,
+    "failed_assertions": 0,
+    "version": "type_c_dr16_direct"
+  }
+]

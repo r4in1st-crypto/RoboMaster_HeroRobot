@@ -2,6 +2,19 @@
 
 本仓库用于团队资料归档与交接。本分支保存 HERO 四轮底盘的两套独立 STM32F407 工程和各自的主机闭环仿真。历史版和 direct 版分别编译本目录的遥控解析器、轮速控制器及场景程序。
 
+## 团队进度 · 2026-11-13
+
+两套底盘已从原工程拆分，在迁移工作区完成 ARM 编译、主机测试和仿真。历史版通过 14 个场景，direct 版通过 7 个场景。下一步由队友在全新克隆中复现并登记结果。[工作日志](logs/logs_index.md) · [最近交接](handoffs/handoffs_index.md) · [协作约定](AGENTS.md)
+
+首次获取项目：
+
+```powershell
+git clone --branch release/chassis https://github.com/r4in1st-crypto/RoboMaster_HeroRobot.git
+cd RoboMaster_HeroRobot
+```
+
+之后在本分支工作区运行 `git pull --ff-only` 获取团队更新。
+
 | 位置 | 内容 |
 | --- | --- |
 | [src/Hero/chassis](src/Hero/chassis/) | 固件、启动文件、链接脚本、主机测试和 ARM 构建入口 |
